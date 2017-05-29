@@ -80,6 +80,21 @@ int cmd_thread(SceSize args, void *argp) {
         return 0;
     }
     */
+
+    server_sock = bind_port(SERVER_PORT);
+    if (server_sock <= 0) {
+        LOG("bind_port failed: %i\n", server_sock);
+        return 0;
+    }
+
+    //LOG("get_sock\n");
+    client_sock = get_sock(server_sock);
+    if (client_sock <= 0) {
+        LOG("get_sock failed: %i\n", client_sock);
+        ksceNetSocketClose(server_sock);
+        return 0;
+    }
+
     char msg[128];
 
     while (!quit) {
@@ -110,20 +125,6 @@ int cmd_thread(SceSize args, void *argp) {
 int module_start(SceSize argc, const void *args) {
 
     //LOG("module_start\n");
-
-    server_sock = bind_port(SERVER_PORT);
-    if (server_sock <= 0) {
-        LOG("bind_port failed: %i\n", server_sock);
-        return SCE_KERNEL_START_FAILED;
-    }
-
-    //LOG("get_sock\n");
-    client_sock = get_sock(server_sock);
-    if (client_sock <= 0) {
-        LOG("get_sock failed: %i\n", client_sock);
-        ksceNetSocketClose(server_sock);
-        return SCE_KERNEL_START_FAILED;
-    }
 
     cmd_thid = ksceKernelCreateThread("nettest_th", cmd_thread, 64, 0x4000, 0, 0x10000, 0);
     if (cmd_thid >= 0)
