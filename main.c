@@ -70,9 +70,6 @@ int module_start(SceSize argc, const void *args) {
     //log_reset();
     //LOG("module_start\n");
 
-    uint32_t state;
-    ENTER_SYSCALL(state);
-
     int server_sock = bind_port(SERVER_PORT);
     if (server_sock <= 0) {
         LOG("bind_port failed: %i\n", server_sock);
@@ -96,8 +93,6 @@ int module_start(SceSize argc, const void *args) {
 
     ksceNetSocketClose(client_sock);
     ksceNetSocketClose(server_sock);
-
-    EXIT_SYSCALL(state);
 
     return SCE_KERNEL_START_NO_RESIDENT;
 }
