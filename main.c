@@ -5,7 +5,7 @@
 #include "utils.h"
 
 #define SERVER_PORT 4444
-#define BUFFER_SIZE 1024*1024
+#define BUFFER_SIZE 1024
 #define MAX_CHAR 256
 
 void _start() __attribute__ ((weak, alias ("module_start")));
@@ -71,7 +71,6 @@ void cleanup() {
 
 int cmd_thread(SceSize args, void *argp) {
 
-
     char *msg = kpool_alloc(BUFFER_SIZE);
     if (msg == NULL) {
         LOG("msg buffer == NULL\n");
@@ -94,14 +93,13 @@ int cmd_thread(SceSize args, void *argp) {
         return 0;
     }
 
-    //char msg[128];
-
     while (!quit) {
 
+        //char msg[BUFFER_SIZE];
         memset(msg, 0, BUFFER_SIZE);
 
         int size = ksceNetRecvfrom(
-                client_sock, msg, BUFFER_SIZE, 0x1000, (SceNetSockaddr *) &client, &client_size);
+                client_sock, msg, BUFFER_SIZE, 0x1000, NULL, 0);
 
         if (size < 0) {
             char str[512];
@@ -110,9 +108,14 @@ int cmd_thread(SceSize args, void *argp) {
             ksceNetSendto(client_sock, str, strlen(str), 0, NULL, 0);
             break;
         } else {
-            char str[512];
-            snprintf(str, 512, "ksceNetRecvfrom(%i): %i (0x%08X) : %s\n", client_sock, size, size, msg);
-            ksceNetSendto(client_sock, str, strlen(str), 0, NULL, 0);
+            if (strncmp(msg, "hello", 5) == 0) {
+                ksceNetSendto(client_sock, "SUCCESS\n", 8, 0, NULL, 0);
+            } else {
+                char str[512];
+                snprintf(str, 512, "ksceNetRecvfrom(%i): %i (0x%08X) : %s (%i)\n",
+                         client_sock, size, size, msg, strlen(msg));
+                ksceNetSendto(client_sock, str, strlen(str), 0, NULL, 0);
+            }
         }
     }
 
