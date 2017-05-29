@@ -11,7 +11,7 @@ endif()
 project(nettest)
 include("${VITASDK}/share/vita.cmake" REQUIRED)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O2 -std=c99")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wl,-q -Wall -O3 -std=gnu99")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fno-rtti -fno-exceptions")
 
 add_subdirectory(loader)
@@ -23,18 +23,18 @@ link_directories(
         ${CMAKE_CURRENT_BINARY_DIR}
 )
 
-add_executable(nettest.elf
+add_executable(${PROJECT_NAME}.elf
         main.c
         )
 
-target_link_libraries(nettest.elf
+target_link_libraries(${PROJECT_NAME}.elf
         k
-        taihenForKernel_stub
         SceSysmemForDriver_stub
         SceThreadmgrForDriver_stub
         SceIofilemgrForDriver_stub
         SceSysclibForDriver_stub
-        SceNetPsForDriver_stub
+        #SceNetPsForDriver_stub
+        ${CMAKE_SOURCE_DIR}/knet/stub/libSceNetPsForDriver_stub.a
         gcc
         -nostdlib
         )
@@ -42,3 +42,10 @@ vita_create_self(${PROJECT_NAME}.skprx ${PROJECT_NAME}.elf
         CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/nettest.yml
         UNSAFE)
 
+add_custom_target(${PROJECT_NAME}.stubs
+        COMMAND rm -rf ${CMAKE_SOURCE_DIR}/knet/stub
+        COMMAND ${VITASDK}/bin/vita-libs-gen ${CMAKE_SOURCE_DIR}/knet/db.yml ${CMAKE_SOURCE_DIR}/knet/stub
+        COMMAND VITASDK=${VITASDK} make -C ${CMAKE_SOURCE_DIR}/knet/stub
+        )
+
+add_dependencies(${PROJECT_NAME}.elf ${PROJECT_NAME}.stubs)

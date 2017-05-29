@@ -1,11 +1,6 @@
-#include <stdio.h>
-#include <string.h>
-#include <taihen.h>
-#include <psp2kern/io/fcntl.h>
-#include <psp2kern/net/net.h>
-#include <psp2kern/kernel/modulemgr.h>
-#include <psp2kern/kernel/threadmgr.h>
-#include <psp2kern/kernel/sysmem.h>
+#include <vitasdkkern.h>
+#include <libk/string.h>
+#include <libk/stdio.h>
 
 #define LOG_FILE "ux0:tai/nettest.log"
 #define MAX_CHAR 256
@@ -32,24 +27,28 @@ void log_write(const char *buffer) {
 
 int get_sock(int sock) {
 
-    SceNetSockaddrIn clientAddress;
-    unsigned int c = sizeof(clientAddress);
-    return ksceNetAccept(sock, (SceNetSockaddr *) &clientAddress, &c);
+    SceNetSockaddrIn client;
+    memset(&client, 0, sizeof(client));
+    client.sin_len = sizeof(client);
+    unsigned int sin_size = sizeof(client);
+    return ksceNetAccept(sock, (SceNetSockaddr *) &client, &sin_size);
 }
 
 int bind_port(int port) {
 
     SceNetSockaddrIn serverAddress;
 
+    // prepare the sockaddr structure
+    serverAddress.sin_len = sizeof(serverAddress);
+    serverAddress.sin_family = SCE_NET_AF_INET;
+    serverAddress.sin_addr.s_addr = SCE_NET_INADDR_ANY;
+    serverAddress.sin_port = ksceNetHtons((unsigned short) port);
+    memset(serverAddress.sin_zero, 0, sizeof(serverAddress.sin_zero));
+
     // create server socket
     int sock = ksceNetSocket("socktest",
                              SCE_NET_AF_INET,
                              SCE_NET_SOCK_STREAM, 0);
-
-    // prepare the sockaddr structure
-    serverAddress.sin_family = SCE_NET_AF_INET;
-    serverAddress.sin_port = ksceNetHtons((unsigned short) port);
-    serverAddress.sin_addr.s_addr = ksceNetHtonl(SCE_NET_INADDR_ANY);
 
     // bind
     if (ksceNetBind(sock, (SceNetSockaddr *) &serverAddress, sizeof(serverAddress)) < 0) {
@@ -58,7 +57,7 @@ int bind_port(int port) {
     }
 
     // listen
-    if (ksceNetListen(sock, 1) < 0) {
+    if (ksceNetListen(sock, 128) < 0) {
         LOG("sceNetListen failed\n");
         return -1;
     }
@@ -70,6 +69,9 @@ int module_start(SceSize argc, const void *args) {
 
     //log_reset();
     //LOG("module_start\n");
+
+    uint32_t state;
+    ENTER_SYSCALL(state);
 
     int server_sock = bind_port(SERVER_PORT);
     if (server_sock <= 0) {
@@ -85,16 +87,17 @@ int module_start(SceSize argc, const void *args) {
         return SCE_KERNEL_START_FAILED;
     }
 
-    char msg[64];
-    memset(msg, 0, 64);
-
-    int size = ksceNetRecvfrom(client_sock, msg, 63, 0, NULL, NULL);
-    LOG("ksceNetRecvfrom: %i : %s\n", size, msg);
+    char msg[16];
+    memset(msg, 0, 16);
+    int size = ksceNetRecvfrom(client_sock, msg, 16, 0, NULL, 0);
+    LOG("ksceNetRecvfrom: %i (0x%08X) : %s\n", size, size, msg);
 
     ksceNetSendto(client_sock, "hello\n", 6, 0, NULL, 0);
 
     ksceNetSocketClose(client_sock);
     ksceNetSocketClose(server_sock);
+
+    EXIT_SYSCALL(state);
 
     return SCE_KERNEL_START_NO_RESIDENT;
 }

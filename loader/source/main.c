@@ -1,18 +1,32 @@
 #include <stdio.h>
-#include <stdlib.h>
 #include <psp2/kernel/processmgr.h>
 #include <psp2/kernel/modulemgr.h>
-#include <psp2/sysmodule.h>
-#include <psp2/net/netctl.h>
 #include <psp2/ctrl.h>
 #include <psp2/kernel/clib.h>
-
 #include <taihen.h>
 
 #include "debugScreen.h"
 
 #define printf psvDebugScreenPrintf
-#define SKPRX "ux0:tai/nettest.skprx"
+
+#define PSP2S_K 0
+#define PSP2S_U 1
+
+#define MOD_TYPE_K 0
+#define MOD_TYPE_U 1
+
+int sceKernelStartModule(SceUID modid, SceSize args, void *argp, int flags, void *option, int *status);
+
+typedef struct Module {
+    char *name;
+    char *path;
+    int type;
+    SceUID uid;
+} Module;
+
+Module modules[1] = {
+        {"nettest", "ux0:tai/nettest.skprx", MOD_TYPE_K, -1}
+};
 
 int exitTimeout(SceUInt delay) {
 
@@ -22,72 +36,71 @@ int exitTimeout(SceUInt delay) {
     return 0;
 }
 
-void netInit() {
+void start_module(Module *module) {
 
-    sceSysmoduleLoadModule(SCE_SYSMODULE_NET);
-    SceNetInitParam netInitParam;
-    size_t size = 1 * 1024 * 1024;
-    netInitParam.memory = malloc(size);
-    netInitParam.size = size;
-    netInitParam.flags = 0;
-    sceNetInit(&netInitParam);
-    sceNetCtlInit();
-}
+    // load
+    printf("loading %s\n", module->name);
 
-SceUID getModuleUID() {
-    tai_module_info_t info;
-    info.size = sizeof(info);
-    if (taiGetModuleInfo("nettest", &info) >= 0) {
-        return info.modid;
-    }
-    return -1;
-}
-
-void load() {
-
-    if(getModuleUID() >= 0) {
-        printf("nettest module already loaded\n");
+    if (module->uid >= 0) {
+        printf("%s module already loaded\n", module->name);
         return;
     }
 
-    //SceUID pid = sceKernelGetProcessId();
-    //printf("loading %s (pid=%i)\n", SKPRX, pid);
-    //int ret = taiLoadStartModuleForPid(pid, SKPRX, 0, NULL, 0);//taiLoadStartKernelModule(SKPRX, 0, NULL, 0);
+    module->uid = module->type == MOD_TYPE_U ?
+                  sceKernelLoadModule(module->path, 0, NULL) :
+                  taiLoadKernelModule(module->path, 0, NULL);
 
-    printf("loading %s\n", SKPRX);
-    int ret = taiLoadStartKernelModule(SKPRX, 0, NULL, 0);
-    //int ret = taiLoadKernelModule(SKPRX, 0, NULL);
-    if (ret >= 0) {
-        printf("nettest module loaded\n");
-        SceNetCtlInfo netInfo;
-        sceNetCtlInetGetInfo(SCE_NETCTL_INFO_GET_IP_ADDRESS, &netInfo);
-        printf("telnet to %s:4444\n", netInfo.ip_address);
-
+    if (module->uid >= 0) {
+        printf("%s module loaded\n", module->name);
     } else {
-        printf("could not load nettest: 0x%08x\n", ret);
+        printf("could not load %s: 0x%08X", module->name, module->uid);
+        return;
     }
 
-    sceKernelDelayThread(1000*1000);
+    // start
+    printf("starting %s (0x%08X)\n", module->name, module->uid);
+
+    int res = 0;
+    int ret = module->type == MOD_TYPE_U ?
+              sceKernelStartModule(module->uid, 0, NULL, 0, NULL, &res) :
+              taiStartKernelModule(module->uid, 0, NULL, 0, NULL, &res);
+
+    if (ret >= 0) {
+        printf("%s module started\n", modules->name);
+    } else {
+        printf("could not start %s: 0x%08X", modules->name, res);
+        if (module->type == MOD_TYPE_U) {
+            sceKernelUnloadModule(modules->uid, 0, NULL);
+        } else {
+            taiUnloadKernelModule(modules->uid, 0, NULL);
+        }
+        module->uid = -1;
+    }
+
+    sceKernelDelayThread(1000 * 1000);
 }
 
-void unload() {
+void stop_module(Module *module) {
 
-    printf("unloading nettest\n");
+    printf("stopping %s\n", module->name);
 
-    SceUID uid = getModuleUID();
-    if(uid >= 0) {
-        int ret = taiStopUnloadKernelModule(uid, 0, NULL, 0, NULL, NULL);
-        //int ret = sceKernelStopUnloadModule(uid, 0, NULL, 0, NULL, 0);
-        if (ret >= 0) {
-            printf("nettest module unloaded\n");
-        } else {
-            printf("could not unload nettest: %i\n", ret);
-        }
-    } else {
-        printf("nettest module not loaded\n");
+    if (module->uid < 0) {
+        printf("%s module not loaded\n", module->name);
+        return;
     }
 
-    sceKernelDelayThread(1000*500);
+    int res = 0;
+    int ret = module->type == MOD_TYPE_U ?
+              sceKernelStopUnloadModule(module->uid, 0, NULL, 0, NULL, &res) :
+              taiStopUnloadKernelModule(module->uid, 0, NULL, 0, NULL, &res);
+    if (ret >= 0) {
+        module->uid = -1;
+        printf("%s module unloaded\n", module->name);
+    } else {
+        printf("could not unload %s: 0x%08X\n", ret);
+    }
+
+    sceKernelDelayThread(1000 * 500);
 }
 
 int main(int argc, char *argv[]) {
@@ -95,27 +108,29 @@ int main(int argc, char *argv[]) {
     SceCtrlData ctrl;
 
     psvDebugScreenInit();
-    netInit();
 
-    printf("nettest LOADER @ Cpasjuste\n\n");
-    printf("Triangle to load nettest module\n");
-    printf("Square to unload nettest module\n");
-    printf("Circle to test sceClibPrintf hook\n");
-    printf("Cross/Circle to exit\n");
+    printf("LOADER @ Cpasjuste\n\n");
+
+    printf("Square to load module\n");
+    printf("Triangle to unload module\n\n");
+
+    printf("L/R to printf\n");
+
+    printf("Start to exit\n");
 
     while (1) {
 
         sceCtrlPeekBufferPositive(0, &ctrl, 1);
-        if (ctrl.buttons == (SCE_CTRL_CIRCLE | SCE_CTRL_CROSS))
-            break;
-        else if (ctrl.buttons == SCE_CTRL_TRIANGLE)
-            load();
-        else if (ctrl.buttons == SCE_CTRL_SQUARE)
-            unload();
-        else if (ctrl.buttons == SCE_CTRL_CIRCLE) {
+        if (ctrl.buttons == (SCE_CTRL_LTRIGGER | SCE_CTRL_RTRIGGER)) {
             sceClibPrintf("Hello Module1\n");
             printf("Hello Module2\n");
             fprintf(stdout, "Hello Module3\n");
+        } else if (ctrl.buttons == SCE_CTRL_SQUARE) {
+            start_module(&modules[PSP2S_K]);
+        } else if (ctrl.buttons == SCE_CTRL_TRIANGLE) {
+            stop_module(&modules[PSP2S_K]);
+        } else if (ctrl.buttons == SCE_CTRL_START) {
+            break;
         }
     }
 

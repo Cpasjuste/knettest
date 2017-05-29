@@ -1,0 +1,20 @@
+version: 2
+firmware: 3.60
+modules:
+  SceNetPs:
+    nid: 0x5A7BCCDA
+    libraries:
+      SceNetPsForDriver:
+        kernel: true
+        nid: 0xB2A5C920
+        functions:
+          ksceNetSocket: 0xEB95B024
+          ksceNetAccept: 0x880A5423
+          ksceNetBind: 0x84AB650F
+          ksceNetListen: 0x80C7992
+          ksceNetRecv: 0x49B1669C
+          ksceNetRecvfrom: 0x49B1669C
+          ksceNetSend: 0xAB746734
+          ksceNetSendto: 0xAB746734
+          ksceNetSetsockopt: 0x4BF5FAB4
+          ksceNetSocketClose: 0x21F4428D

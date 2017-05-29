@@ -49,3 +49,4 @@ Temporary Items
 *cmake-build-debug*
 *cmake-build-release*
 *.idea*
+knet/stub
