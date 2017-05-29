@@ -25,6 +25,7 @@ link_directories(
 
 add_executable(${PROJECT_NAME}.elf
         main.c
+        utils.c
         )
 
 target_link_libraries(${PROJECT_NAME}.elf
