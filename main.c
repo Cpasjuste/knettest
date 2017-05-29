@@ -71,7 +71,7 @@ void cleanup() {
 
 int cmd_thread(SceSize args, void *argp) {
 
-    /*
+
     char *msg = kpool_alloc(BUFFER_SIZE);
     if (msg == NULL) {
         LOG("msg buffer == NULL\n");
@@ -79,7 +79,6 @@ int cmd_thread(SceSize args, void *argp) {
         ksceKernelExitDeleteThread(0);
         return 0;
     }
-    */
 
     server_sock = bind_port(SERVER_PORT);
     if (server_sock <= 0) {
@@ -95,21 +94,25 @@ int cmd_thread(SceSize args, void *argp) {
         return 0;
     }
 
-    char msg[128];
+    //char msg[128];
 
     while (!quit) {
 
-        memset(msg, 0, 128);
+        memset(msg, 0, BUFFER_SIZE);
 
         int size = ksceNetRecvfrom(
-                client_sock, msg, 128, 0, NULL, NULL);
+                client_sock, msg, BUFFER_SIZE, 0x1000, (SceNetSockaddr *) &client, &client_size);
 
         if (size < 0) {
-            LOG("ksceNetRecvfrom(%i): %i (0x%08X) : %s\n", client_sock, size, size, msg);
-            ksceNetSendto(client_sock, "FAILED\n", 7, 0, NULL, 0);
+            char str[512];
+            snprintf(str, 512, "ksceNetRecvfrom(%i): %i (0x%08X) : %s\n", client_sock, size, size, msg);
+            LOG(str);
+            ksceNetSendto(client_sock, str, strlen(str), 0, NULL, 0);
             break;
         } else {
-            ksceNetSendto(client_sock, "SUCCESS\n", 8, 0, NULL, 0);
+            char str[512];
+            snprintf(str, 512, "ksceNetRecvfrom(%i): %i (0x%08X) : %s\n", client_sock, size, size, msg);
+            ksceNetSendto(client_sock, str, strlen(str), 0, NULL, 0);
         }
     }
 
