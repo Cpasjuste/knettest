@@ -71,6 +71,7 @@ void cleanup() {
 
 int cmd_thread(SceSize args, void *argp) {
 
+    /*
     char *msg = kpool_alloc(BUFFER_SIZE);
     if (msg == NULL) {
         LOG("msg buffer == NULL\n");
@@ -78,6 +79,7 @@ int cmd_thread(SceSize args, void *argp) {
         ksceKernelExitDeleteThread(0);
         return 0;
     }
+    */
 
     server_sock = bind_port(SERVER_PORT);
     if (server_sock <= 0) {
@@ -95,11 +97,11 @@ int cmd_thread(SceSize args, void *argp) {
 
     while (!quit) {
 
-        //char msg[BUFFER_SIZE];
+        char msg[BUFFER_SIZE];
         memset(msg, 0, BUFFER_SIZE);
 
         int size = ksceNetRecvfrom(
-                client_sock, msg, BUFFER_SIZE, 0x1000, NULL, 0);
+                client_sock, msg, 64, 0x1000, NULL, 0);
 
         if (size < 0) {
             char str[512];
@@ -108,6 +110,11 @@ int cmd_thread(SceSize args, void *argp) {
             ksceNetSendto(client_sock, str, strlen(str), 0, NULL, 0);
             break;
         } else {
+            if (size == 10) {
+                ksceNetSendto(client_sock, "STOP\n", 5, 0, NULL, 0);
+                break;
+            }
+
             if (strncmp(msg, "hello", 5) == 0) {
                 ksceNetSendto(client_sock, "SUCCESS\n", 8, 0, NULL, 0);
             } else {
