@@ -1,12 +1,11 @@
 
 #include <libk/string.h>
-#include <libk/stdbool.h>
-#include <libk/stdio.h>
 #include <psp2kern/net/net.h>
 #include <psp2common/types.h>
 #include <psp2kern/kernel/debug.h>
 #include <psp2kern/kernel/threadmgr/thread.h>
 #include <psp2kern/kernel/modulemgr.h>
+#include <psp2kern/kernel/sysmem.h>
 
 #define printf ksceDebugPrintf
 
@@ -59,6 +58,24 @@ void cleanup() {
     }
 }
 
+void *kmalloc(size_t size) {
+    void *p = NULL;
+    SceUID uid = ksceKernelAllocMemBlock(
+            "k", SCE_KERNEL_MEMBLOCK_TYPE_KERNEL_RW, (size + 0xFFF) & (~0xFFF), 0);
+    if (uid >= 0) {
+        ksceKernelGetMemBlockBase(uid, &p);
+    }
+
+    return p;
+}
+
+void kfree(void *p) {
+    SceUID uid = ksceKernelFindMemBlockByAddr(p, 1);
+    if (uid >= 0) {
+        ksceKernelFreeMemBlock(uid);
+    }
+}
+
 int cmd_thread(SceSize args, void *argp) {
 
     server_sock = bind_port(SERVER_PORT);
@@ -79,13 +96,18 @@ int cmd_thread(SceSize args, void *argp) {
     }
 
     printf("ksceNetRecvfrom\n");
-    char msg[BUFFER_SIZE];
-    memset(msg, 0, BUFFER_SIZE);
-    int size = ksceNetRecvfrom(
-            client_sock, msg, BUFFER_SIZE, 0x1000, (SceNetSockaddr *) &client, &clientLen);
 
-    printf("ksceNetRecvfrom: sock: %i, size: %i, msg: %s\n",
-           client_sock, size, msg);
+    char *msg = kmalloc(BUFFER_SIZE);
+    if (msg != NULL) {
+        memset(msg, 0, BUFFER_SIZE);
+        int size = ksceNetRecvfrom(
+                client_sock, msg, BUFFER_SIZE, 0x1000, NULL, 0);
+        printf("ksceNetRecvfrom: sock: %i, size: %i (0x%08x), msg: %s\n",
+               client_sock, size, size, msg);
+        kfree(msg);
+    } else {
+        printf("kmalloc failed\n");
+    }
 
     cleanup();
     ksceKernelExitDeleteThread(0);
