@@ -16,6 +16,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fno-rtti -fno-exceptions")
 add_executable(${PROJECT_NAME}.elf main.c)
 
 target_link_libraries(${PROJECT_NAME}.elf
+        taihenForKernel_stub
         SceSysmemForDriver_stub
         SceThreadmgrForDriver_stub
         SceNetPsForDriver_stub
